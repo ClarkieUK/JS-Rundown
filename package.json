@@ -1,0 +1,19 @@
+{
+  "name": "js-rundown",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "npm run install-missing-dependencies && npm run server",
+    "install-missing-dependencies": "npm i",
+    "server": "npx vite"
+  },
+  "keywords": [],
+  "author": "Liam Clark",
+  "license": "ISC",
+  "dependencies": {
+    "http-server": "^14.1.1",
+    "node": "^24.9.0",
+    "vite": "^7.1.10"
+  }
+}
