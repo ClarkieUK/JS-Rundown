@@ -45,6 +45,10 @@ struct OurFragmentShaderOutput {
 fn fs(fsInput: OurVertexShaderOutput) -> OurFragmentShaderOutput
 {
     var fsOutput: OurFragmentShaderOutput;
+
     fsOutput.color = textureSample(ourTexture, ourSampler, fsInput.texcoord);
+
+    //fsOutput.color = vec4f(fsInput.texcoord, 0.0, 1.0);
+
     return fsOutput;
 } 

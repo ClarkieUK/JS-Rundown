@@ -1,215 +1,235 @@
 // @ts-nocheck 
 
-import { initGPU } from './core/gpuDevice.js';
-import { rand } from './utils/rand.js';
-import { createCircleVertices } from './utils/circleMesh.js';
-import { createCircleVerticesColored } from './utils/circleMesh.js';
+import { initGPU } from "./core/gpuDevice";
+import GUI from 'https://muigui.org/dist/0.x/muigui.module.js';
+import { rand } from "./utils/rand";
 
-async function main()
-{
+async function main(){
 
-    const canvas = document.querySelector('canvas');
+    // init canvas and gpu related shebang
+    const canvas = document.querySelector('canvas')
+    const {device, context, format} = await initGPU(canvas);
 
-    const {device, context, format} = await (initGPU(canvas))
+    // shader pipeline
+    let shaderCode = await(await fetch('src/shaders/texture.wgsl')).text();
 
-    let shaderCode = await(await fetch('src/shaders/gpu_fundamentals.wgsl')).text();
-    
-    const module = device.createShaderModule({
-        label: 'basic shader module',
+    const textureModule = device.createShaderModule({
+        label: 'texture module',
         code: shaderCode,
-    });
- 
-    shaderCode = await(await fetch('src/shaders/triangle.wgsl')).text();
-
-    const triangleModule = device.createShaderModule({
-        label: 'basic triangle shader module',
-        code: shaderCode,
-    });
-
-    const trianglePipeline = device.createRenderPipeline({
-        label: 'pipeline',
-        layout: 'auto',
-        vertex:{
-            entryPoint: 'vs',
-            module: triangleModule,
-            buffers: [
-                {//static
-                    arrayStride: 5 * 4,
-                    attributes: [
-                        {shaderLocation: 0, offset:0, format: 'float32x2'},//position
-                        {shaderLocation: 1, offset:2 * 4, format: 'float32x3'}
-                    ],
-                },
-            ],
-        },
-        fragment:
-        {
-            entryPoint: 'fs',
-            module: triangleModule,
-            targets: [{format: format}],
-        }
     })
 
     const pipeline = device.createRenderPipeline({
-        label: 'pipeline',
+        label: 'texture pipeline',
         layout: 'auto',
         vertex: {
-            entryPoint: 'vs',
-            module: module,
-            buffers: [ // will have 3 buffers
-            {//static
-                arrayStride: 5 * 4,
-                attributes: [
-                    {shaderLocation: 0, offset:0, format: 'float32x2'},//position
-                    {shaderLocation: 4, offset:2 * 4, format: 'float32x3'}
-                ],
-            },
-            {//static
-                arrayStride: 6 * 4, //
-                stepMode: 'instance',
-                attributes: [
-                    {shaderLocation: 1, offset:0, format: 'float32x4'},//color
-                    {shaderLocation: 2, offset:4*4, format: 'float32x2'}//offset
-                ],
-            },
-            {//changing
-                arrayStride: 2 * 4,
-                stepMode: 'instance', // other is 'vertex'
-                attributes: [
-                    {shaderLocation: 3, offset:0, format: 'float32x2'} //scale
-                ],
-            },
-        ],
+            module: textureModule,
         },
-        fragment : {
-            entryPoint: 'fs',
-            module: module,
-            targets: [{ format: format}],
+        fragment: {
+            module: textureModule,
+            targets: [{format: format}]
         }
-    });
+    })
 
+    // texture data
+    const kTextureWidth = 400;
+    const kTextureHeight = 400;
+    const _ = [255, 0, 0, 255];
+    const y = [255, 255, 0, 255];
+    const b = [0, 0, 255, 255];
+    
+    
+    /*const textureData = new Uint8Array([
+    _, _, _, _, _,
+    _, y, _, _, _,
+    _, y, _, _, _,
+    _, y, y, _, _,
+    _, y, _, _, _,
+    _, y, y, y, _,
+    b, _, _, _, _,
+    ].flat()); */
+
+
+    const data = [];
+
+    for (let i = 0; i < kTextureWidth * kTextureHeight; i++) {
+        let onOrOff = Math.round(Math.random()) * 255;
+        data.push(onOrOff, onOrOff, onOrOff, 255);
+    }
+
+
+    const hdelta = 1 / kTextureWidth;
+    const vdelta = 1 / kTextureHeight;
+
+    const baseline = [0.12,0.0,0.0]
+    
+    const leftEye = [0.5 - baseline[0]/2, 0.5, -3]
+    const rightEye = [0.5 + baseline[0]/2, 0.5, -3]
+
+    let planeZ = 2;
+    let planeBoundLower = 0.3
+    let planeBoundUpper = 0.7
+
+    const screenZ = 0;
+    // take a snapshot of the original texture data to read from while writing into `data`
+    const originalData = data.slice();
+
+    for (let i = 0; i<kTextureHeight; i++) // row
+    {
+        for (let j = 0; j<kTextureWidth; j++) // column
+        {
+            // centre of texel
+            let x = (j+1/2) * hdelta;
+            let y = (i+1/2) * vdelta;
+            let z = screenZ;
+
+            let pixelScreenPosition = [x, y, z];
+
+            // A -> B == B - A
+            let rayDir = pixelScreenPosition.map((v, i) => v - leftEye[i]);
+
+            // avoid inf
+            if (rayDir[2] === 0) continue;
+
+            let t = (planeZ - leftEye[2]) / rayDir[2];
+            let hitPoint = rayDir.map((D, i) => leftEye[i] + t * D);
+
+            let hitX = hitPoint[0];
+            let hitY = hitPoint[1];
+
+            if (hitX >= planeBoundLower && hitX <= planeBoundUpper &&
+                hitY >= planeBoundLower && hitY <= planeBoundUpper)
+            {
+                let leftIndex = (i * kTextureWidth + j) * 4 // gone through i rows and j columns of 4 colour values;
+
+                /*// debug
+                data[leftIndex] = 255;     // R
+                data[leftIndex + 1] = 0;   // G  
+                data[leftIndex + 2] = 0;   // B
+                data[leftIndex + 3] = 255; // A
+                continue; */
+
+                // go to same hitpoint with right eye ray
+                let rayDirR = hitPoint.map((v, idx) => v - rightEye[idx]);
+
+                if (rayDirR[2] === 0) continue;
+
+                // IMPORTANT: intersect with screenZ (0), not planeZ
+                let tR = (screenZ - rightEye[2]) / rayDirR[2];
+                let pixelScreenR = rayDirR.map((v, idx) => rightEye[idx] + tR * v);
+
+                //pixelScreenR = pixelScreenR.map((e,i) => Math.round(e * 1000) / 1000)
+
+                pixelScreenR[0] = (kTextureWidth * pixelScreenR[0] + 1/2) * 1/kTextureWidth
+                pixelScreenR[1] = (kTextureHeight * pixelScreenR[1] + 1/2) * 1/kTextureHeight
+
+                // use floor mapping to get integer texel coords
+                let jR = Math.floor(pixelScreenR[0] / hdelta); // remove 1+2 factor (1.5 -> 1 | 0.495/0.33 -> 1, for 3x3 grid)
+                let iR = Math.floor(pixelScreenR[1] / vdelta);
+
+                if (jR >= 0 && jR < kTextureWidth && iR >= 0 && iR < kTextureHeight) { // for a 3x3 grid i,j are in [0,1,2]
+                    let rightIndex = (iR * kTextureWidth + jR) * 4; // 4 values for each point on row and up to jR in column
+
+                    for (let k = 0; k < 4; k++) {
+                        data[leftIndex + k] = originalData[rightIndex + k];
+                        //data[leftIndex + k] = 0
+                        //data[rightIndex + k] = 0
+                    }
+                } else {
+                    
+                    //for (let k = 0; k < 4; k++) {
+                    //    data[leftIndex + k] = 0;
+                    //}
+                }
+            }
+        }
+    }
+    
+    const textureData = new Uint8Array(data)
+
+    const texture = device.createTexture({
+        size: [kTextureWidth, kTextureHeight],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST
+    })
+
+    device.queue.writeTexture(
+        { texture },
+        textureData, 
+        { bytesPerRow: kTextureWidth * 4 },
+        { width: kTextureWidth, height: kTextureHeight },
+    )
+
+    // since we want to use multiple samplers , need multiple bind groups
+
+    const bindGroups = [];
+
+    for (let i = 0; i < 8; i++) {
+        
+        const sampler = device.createSampler({
+            addressModeU: (i & 1) ? 'repeat' : 'clamp-to-edge',
+            addressModeV: (i & 2) ? 'repeat' : 'clamp-to-edge',
+            magFilter: (i & 4) ? 'linear' : 'nearest',
+        });
+        
+        const bindGroup = device.createBindGroup({
+            layout: pipeline.getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: sampler },
+                { binding: 1, resource: texture.createView() }
+            ]
+        })
+
+        bindGroups.push(bindGroup)
+    }
+
+    // render desciptor
     const renderPassDescriptor = {
-        label: 'renderpass',
+        label: 'our basic canvas renderPass',
         colorAttachments: [
             {
                 view: undefined,
-                clearValue: [0.3, 0.3, 0.3, 1.0],
+                clearValue: [0.3, 0.3, 0.3, 1],
                 loadOp: 'clear',
                 storeOp: 'store',
-            },
-        ],
-    };
-
-    const kColorOffset = 0;
-    const kOffsetOffset = 4; // after 4 color values and 2 position values
-
-    const kScaleOffset = 0; // after 4 (0 when split) colour values
-
-    const kNumObjects = 50;
-    const objectInfos = [];
-    
-    const { vertexData, numVertices } = createCircleVerticesColored({
-        radius: 0.5,
-        innerRadius: 0.25,
-        numSubdivisions: 50,
-    });
-
-    const datat = new Float32Array([
-        0.5,-0.5,1.0,1.0,1.0,
-        0.0,0.5,0.0,0.0,0.0,
-        -0.5,-0.5,0.0,1.0,0.0])
-
-    const test = device.createBuffer({
-        label:'test',
-        size: datat.byteLength,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    })
-
-    device.queue.writeBuffer(test, 0, datat)
-
-    // create 2 storage buffers
-    const staticUnitSize =
-        4 * 4 +
-        2 * 4;
-    const changingUnitSize =
-        2 * 4;  // scale is 2 32bit floats (4bytes each)
-
-    const staticVertexBufferSize = staticUnitSize * kNumObjects;
-    const changingVertexBufferSize = changingUnitSize * kNumObjects;
-    
-    const staticVertexBuffer = device.createBuffer({
-        label: 'static vertex buffer',
-        size: staticVertexBufferSize,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
-
-    const changingVertexBuffer = device.createBuffer({
-        label: 'changing vertex buffer',
-        size: changingVertexBufferSize,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    })
-
-    const vertexBuffer = device.createBuffer({
-        label: 'vertex buffer',
-        size: vertexData.byteLength,
-        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
-
-
-    device.queue.writeBuffer(vertexBuffer, 0, vertexData);
-    
-    {
-        const staticVertexValues = new Float32Array(staticVertexBufferSize / 4);
-        for (let i = 0; i < kNumObjects; ++i) {
-        const staticOffset = i * (staticUnitSize / 4);
-    
-        // These are only set once so set them now
-        staticVertexValues.set([rand(), rand(), rand(), 1], staticOffset + kColorOffset);        // set the color
-        staticVertexValues.set([rand(-0.9, 0.9), rand(-0.9, 0.9)], staticOffset + kOffsetOffset);      // set the offset
-    
-        objectInfos.push({
-            scale: rand(0.2, 0.5),
-        });
-        }
-        device.queue.writeBuffer(staticVertexBuffer, 0, staticVertexValues);
+            }
+        ]
     }
+
+    const settings = {
+        addressModeU: 'clamp-to-edge',
+        addressModeV: 'clamp-to-edge',
+        magFilter: 'nearest',
+    }
+
+    const addressOptions = ['repeat', 'clamp-to-edge'];
+    const filterOptions = ['nearest', 'linear'];
     
-    // a typed array we can use to update the changingStorageBuffer
-    const vertexValues = new Float32Array(changingVertexBufferSize / 4);
+    const gui = new GUI();
+    gui.onChange(render);
+    Object.assign(gui.domElement.style, {right: '', left: '15px'});
+    gui.add(settings, 'addressModeU', addressOptions);
+    gui.add(settings, 'addressModeV', addressOptions);
+    gui.add(settings, 'magFilter', filterOptions);
 
     function render() {
+        const ndx = (settings.addressModeU === 'repeat' ? 1 : 0) +
+                    (settings.addressModeV === 'repeat' ? 2 : 0) +
+                    (settings.magFilter === 'linear' ? 4 : 0);
+
+        const bindGroup = bindGroups[ndx];
 
         renderPassDescriptor.colorAttachments[0].view =
-            context.getCurrentTexture().createView();
+            context.getCurrentTexture().createView()
 
-        const encoder = device.createCommandEncoder({ label: 'encoder'});
+        const encoder = device.createCommandEncoder({
+            label: 'render quad encoder',
+        })
 
         const pass = encoder.beginRenderPass(renderPassDescriptor);
-        
         pass.setPipeline(pipeline);
-        pass.setVertexBuffer(0, vertexBuffer);
-        pass.setVertexBuffer(1, staticVertexBuffer);
-        pass.setVertexBuffer(2, changingVertexBuffer);
-
-        const aspect = canvas.width / canvas.height ;
-
-        // set the scales for each object
-        objectInfos.forEach(({scale}, ndx) => {
-            const offset = ndx * (changingUnitSize / 4);
-            vertexValues.set([scale / aspect, scale], offset + kScaleOffset); // set the scale
-        });  
-        // upload all scales at once
-        device.queue.writeBuffer(changingVertexBuffer, 0, vertexValues);
-
-        pass.draw(numVertices, kNumObjects);
-
-        pass.setPipeline(trianglePipeline);
-        pass.setVertexBuffer(0, test);
-        pass.draw(3, 1);
-
+        pass.setBindGroup(0, bindGroup);
+        pass.draw(6);
         pass.end();
-
-
 
         const commandBuffer = encoder.finish();
         device.queue.submit([commandBuffer]);
@@ -222,16 +242,13 @@ async function main()
             const height = entry.contentBoxSize[0].blockSize;
             canvas.width = Math.max(1, Math.min(width, device.limits.maxTextureDimension2D));
             canvas.height = Math.max(1, Math.min(height, device.limits.maxTextureDimension2D));
+            // re-render
             render();
-        }
-    });
+            }
+        });
+    observer.observe(canvas);
+}
 
-    observer.observe(canvas)
+main();
 
-}; 
-
-
-
-//document.getElementById('debug').innerHTML = ""
-
-main()
+// got to magfilter 
