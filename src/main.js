@@ -33,26 +33,26 @@ async function main(){
     // texture data
     const kTextureWidth = 500;
     const kTextureHeight = 500;
-    const _ = [255, 0, 0, 255];
-    const y = [255, 255, 0, 255];
-    const b = [0, 0, 255, 255];
     
-    
-    /*const textureData = new Uint8Array([
-    _, _, _, _, _,
-    _, y, _, _, _,
-    _, y, _, _, _,
-    _, y, y, _, _,
-    _, y, _, _, _,
-    _, y, y, y, _,
-    b, _, _, _, _,
-    ].flat()); */
-
-
     const data = [];
 
     for (let i = 0; i < kTextureWidth * kTextureHeight; i++) {
         let onOrOff = Math.round(Math.random()) * 255;
+
+        let idx = Math.round(Math.random() * 2);
+        /*
+        switch (Math.round(Math.random() * 2)) {
+            case 0 :
+                 data.push(onOrOff, 0.0, 0.0, 255);
+            case 1 : 
+                data.push(0.0, onOrOff, 0.0, 255);
+            case 2 : 
+                data.push(0.0, 0.0, onOrOff, 255);
+            
+        }*/
+
+        //console.log(idx)
+
         data.push(onOrOff, onOrOff, onOrOff, 255);
     }
 
@@ -65,8 +65,8 @@ async function main(){
     const leftEye = [0.5 - baseline[0]/2, 0.5, -2]
     const rightEye = [0.5 + baseline[0]/2, 0.5, -2]
 
-    let planeZ = 1;// +Z IS INTO THE SCREEN, IDK WHY ITS ONLY NICE WHEN PZ > 0
-    let planeBoundLower = 0.3
+    let planeZ = 1;// +Z IS INTO THE SCREEN, IDK WHY ITS ONLY NICE WHEN PZ > 0 // 1 works
+    let planeBoundLower = 0.3 
     let planeBoundUpper = 0.6
 
     const screenZ = 0;
@@ -123,8 +123,8 @@ async function main(){
                     for (let k = 0; k < 4; k++) {
                         data[rightIndex + k] = originalData[leftIndex + k];
                         
-                        //data[leftIndex + k] = 0
-                        //data[rightIndex + k] = 170
+                        data[leftIndex + k] = 0
+                        data[rightIndex + k] = 170
                     }
                 } else {
                     
