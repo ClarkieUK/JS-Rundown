@@ -22,5 +22,8 @@
 - Commands are not executed on the device via the encoder until they are submitted.
 
 - Create a shader module with wgsl, then define a pipeline that uses the different shader components and defines a target
+
 - the pipeline is then used to define bindgroups 
 
+- If using a vertex buffer youll have to add a buffers: descriptor inside the pipeline definition so the GPU knows how to unpack the 
+    vertex data

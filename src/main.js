@@ -21,6 +21,14 @@ async function main()
         layout: 'auto',
         vertex: {
             module,
+            buffers: [
+                {
+                    arrayStride: 2 * 4, 
+                    attributes: [
+                        {shaderLocation: 0, offset: 0, format: 'float32x2'},
+                    ]
+                }
+            ]
         },
         fragment: {
             module,
@@ -53,12 +61,12 @@ async function main()
     innerRadius: 0.25,
     });
 
-    const vertexStorageBuffer = device.createBuffer({
+    const vertexBuffer = device.createBuffer({
     label: 'storage buffer vertices',
     size: vertexData.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
-    device.queue.writeBuffer(vertexStorageBuffer, 0, vertexData);
+    device.queue.writeBuffer(vertexBuffer, 0, vertexData);
 
     const staticStorageBuffer = device.createBuffer({
         label:'static',
@@ -94,7 +102,6 @@ async function main()
         entries: [
             { binding: 0, resource: { buffer: staticStorageBuffer }},
             { binding: 1, resource: { buffer: dynamicStorageBuffer }},
-            { binding: 2, resource: { buffer: vertexStorageBuffer }},
         ]
     })
 
@@ -130,6 +137,7 @@ async function main()
         device.queue.writeBuffer(dynamicStorageBuffer, 0, storageValues);
         
         pass.setBindGroup(0, bindGroup);
+        pass.setVertexBuffer(0, vertexBuffer);
         pass.draw(numVertices, kNumObjects);
 
         pass.end();
