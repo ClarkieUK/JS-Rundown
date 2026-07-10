@@ -9,3 +9,6 @@
 | <kbd>**I**</kbd> | Start / pause simulation |
 | <kbd>**O**</kbd>  | Toggle sphere rendering |
 | <kbd>**P**</kbd> | Decouple eyes |
+
+
+I have moved to the Dawn implementation of WebGPU to use C++ and rebuild this from the ground up, it should maintain compatability and can still be compiled to the web if required.  
